@@ -1,8 +1,10 @@
 package caddyfsgit
 
 import (
-	"io/fs"
+	"bytes"
 	"errors"
+	"io"
+	"io/fs"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
@@ -115,12 +117,53 @@ func (gfs *FS) RepoFS() (fs.FS, error) {
 	return gfs.FS, nil
 }
 
+// Since go-git's file objects aren't seekable (and Caddy requires
+// seekable files), we'll just read them entirely into a `bytes.Buffer`
+// and use that as the basis for a new `fs.File` type.
+
+var (
+	_ fs.File  =  (*File)(nil)
+	_ io.Seeker = (*File)(nil)
+)
+
+type File struct {
+	bytes.Reader
+	fileinfo fs.FileInfo
+}
+
+func (f *File) Stat() (fs.FileInfo, error) {
+	return f.fileinfo, nil
+}
+
+func (f *File) Close() error {
+	return nil
+}
+
+func seekableFile(f fs.File) (fs.File, error) {
+	buf, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+	reader := bytes.NewReader(buf)
+	finfo, _ := f.Stat() // We know this will never error
+	return &File{Reader: *reader, fileinfo: finfo}, nil
+}
+
 func (gfs *FS) Open(name string) (fs.File, error) {
 	repofs, err := gfs.RepoFS()
 	if err != nil {
 		return nil, err
 	}
-	return repofs.Open(name)
+	file, err := repofs.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	info, _ := file.Stat()
+	if info.IsDir() {
+		return file, nil
+	} else {
+		return seekableFile(file)
+	}
 }
 
 // To implement StatFS
