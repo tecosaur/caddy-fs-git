@@ -20,6 +20,7 @@ func init() {
 // Interface guards
 var (
 	_ fs.FS                 = (*FS)(nil)
+	_ fs.StatFS             = (*FS)(nil)
 	_ caddyfile.Unmarshaler = (*FS)(nil)
 )
 
@@ -120,4 +121,17 @@ func (gfs *FS) Open(name string) (fs.File, error) {
 		return nil, err
 	}
 	return repofs.Open(name)
+}
+
+// To implement StatFS
+func (gfs *FS) Stat(name string) (fs.FileInfo, error) {
+	repofs, err := gfs.RepoFS()
+	if err != nil {
+		return nil, err
+	}
+	file, err := repofs.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	return file.Stat()
 }
