@@ -10,3 +10,21 @@ Build Caddy using [[https://github.com/caddyserver/xcaddy][xcaddy]]
 #+begin_src sh
 xcaddy build --with github.com/tecosaur/caddy-fs-git
 #+end_src
+
+* Usage
+
+#+begin_src caddyfile
+file_server {
+	fs git <path/to/repo.git>
+}
+#+end_src
+
+#+begin_src caddyfile
+file_server {
+	fs git {
+		repository <path/to/repo.git>
+		revision HEAD # the default revision
+	}
+}
+#+end_src
+
