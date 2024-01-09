@@ -2,3 +2,11 @@
 #+author: tecosaur
 
 /With special thanks to [[https://github.com/sagikazarmark/caddy-fs-s3][caddy-fs-s3]] for serving as a template./
+
+* Installation
+
+Build Caddy using [[https://github.com/caddyserver/xcaddy][xcaddy]]
+
+#+begin_src sh
+xcaddy build --with github.com/tecosaur/caddy-fs-git
+#+end_src
