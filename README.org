@@ -15,7 +15,7 @@ xcaddy build --with github.com/tecosaur/caddy-fs-git
 
 #+begin_src caddyfile
 file_server {
-	fs git <path/to/repo.git>
+	fs git <path/to/repo.git> [<revision=HEAD>]
 }
 #+end_src
 

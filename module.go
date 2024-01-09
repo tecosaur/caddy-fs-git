@@ -68,8 +68,11 @@ func (fs *FS) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 	if !d.Next() { // consume start of block
 		return d.ArgErr()
 	}
-	if d.NextArg() { // Optional "fs git <repo>" form
+	if d.NextArg() { // Optional "fs git <repo> [<rev>]" form
 		fs.Repository = d.Val()
+		if d.NextArg() {
+			fs.Revision = d.Val()
+		}
 	} else {
 		// Form: fs git {
 		//   repo[sitory] <path>
