@@ -24,7 +24,18 @@ file_server {
 	fs git {
 		repository <path/to/repo.git>
 		revision HEAD # the default revision
+		cache_size 64MiB # the default
+		refresh 1s # the default
 	}
 }
 #+end_src
+
+Files are read whole through go-git, one read at a time, and cached within
+=cache_size=: files up to a sixteenth of it, trees, directory listings and
+absent paths. A request for a path already read is served from the cache without
+waiting. The revision is resolved again on the first request after =refresh= has
+passed, so a new commit is served within that interval of the next request.
+Files and trees are cached by their git hash, so a new commit reads only what it
+changed, and an unchanged file keeps its modification time, and so its ETag:
+browsers revalidate it rather than download it again.
 

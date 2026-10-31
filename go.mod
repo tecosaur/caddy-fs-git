@@ -4,8 +4,8 @@ go 1.21.4
 
 require (
 	github.com/caddyserver/caddy/v2 v2.7.6
+	github.com/dustin/go-humanize v1.0.1
 	github.com/go-git/go-git/v5 v5.11.0
-	github.com/thediveo/gitrepofs v0.9.4
 	go.uber.org/zap v1.25.0
 )
 
@@ -34,6 +34,7 @@ require (
 	github.com/mholt/acmez v1.2.0 // indirect
 	github.com/miekg/dns v1.1.55 // indirect
 	github.com/onsi/ginkgo/v2 v2.13.2 // indirect
+	github.com/onsi/gomega v1.30.0 // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/prometheus/client_golang v1.15.1 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
