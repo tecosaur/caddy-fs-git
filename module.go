@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"path"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
@@ -27,6 +29,8 @@ import (
 const (
 	defaultCacheSize = 64 << 20
 	defaultRefresh   = time.Second
+	// As Linux's MAXSYMLINKS
+	maxLinks = 40
 )
 
 func init() {
@@ -279,29 +283,16 @@ func (gfs *FS) contents(p *pathEntry) ([]byte, error) {
 	return gfs.readBlob(p.blob, gfs.view.when)
 }
 
-// readPath reads what name is in a commit's tree, walking it from the root. Under git.
+// readPath reads what name is in a commit's tree, following symlinks. Under git.
 func (gfs *FS) readPath(v *view, name string) (*pathEntry, error) {
-	if name == "." {
-		listing, err := gfs.list(v, v.root)
-		return &pathEntry{info: dirInfo(".", v), listing: listing}, err
+	entry, err := gfs.walk(v, name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return &pathEntry{missing: true}, nil
+	} else if err != nil {
+		return nil, err
 	}
-	var entry object.TreeEntry
-	dir := v.root
-	for _, part := range strings.Split(name, "/") {
-		if entry.Name != "" && entry.Mode != filemode.Dir {
-			return &pathEntry{missing: true}, nil
-		}
-		entries, err := gfs.tree(dir)
-		if err != nil {
-			return nil, err
-		}
-		i := sort.Search(len(entries), func(i int) bool { return entries[i].Name >= part })
-		if i == len(entries) || entries[i].Name != part {
-			return &pathEntry{missing: true}, nil
-		}
-		entry = entries[i]
-		dir = entry.Hash
-	}
+	// Named as requested, as os.Stat names a link by itself
+	entry.Name = path.Base(name)
 	switch entry.Mode {
 	case filemode.Dir:
 		listing, err := gfs.list(v, entry.Hash)
@@ -320,6 +311,58 @@ func (gfs *FS) readPath(v *view, name string) (*pathEntry, error) {
 		}
 	}
 	return &pathEntry{info: info, blob: entry.Hash}, nil
+}
+
+// walk finds the entry name reaches from the root, through at most maxLinks symlinks.
+// fs.ErrNotExist if it reaches nothing within the tree. Under git.
+func (gfs *FS) walk(v *view, name string) (object.TreeEntry, error) {
+	for links := 0; links <= maxLinks; links++ {
+		entry, target, err := gfs.walkToLink(v, name)
+		if err != nil || target == "" {
+			return entry, err
+		}
+		name = target
+	}
+	return object.TreeEntry{}, syscall.ELOOP
+}
+
+// walkToLink finds the entry name reaches, or stops at the first symlink on the way with the
+// path it redirects to. Under git.
+func (gfs *FS) walkToLink(v *view, name string) (object.TreeEntry, string, error) {
+	entry := object.TreeEntry{Mode: filemode.Dir, Hash: v.root}
+	if name == "." {
+		return entry, "", nil
+	}
+	parts := strings.Split(name, "/")
+	for i, part := range parts {
+		if entry.Mode != filemode.Dir {
+			return entry, "", fs.ErrNotExist
+		}
+		entries, err := gfs.tree(entry.Hash)
+		if err != nil {
+			return entry, "", err
+		}
+		j := sort.Search(len(entries), func(j int) bool { return entries[j].Name >= part })
+		if j == len(entries) || entries[j].Name != part {
+			return entry, "", fs.ErrNotExist
+		}
+		entry = entries[j]
+		if entry.Mode != filemode.Symlink {
+			continue
+		}
+		link, err := gfs.readBlob(entry.Hash, v.when)
+		if err != nil {
+			return entry, "", err
+		}
+		// Clean resolves "..", so a target outside the tree is left with a leading one
+		dir := path.Dir(strings.Join(parts[:i+1], "/"))
+		target := path.Join(dir, string(link), path.Join(parts[i+1:]...))
+		if path.IsAbs(string(link)) || !fs.ValidPath(target) {
+			return entry, "", fs.ErrNotExist
+		}
+		return entry, target, nil
+	}
+	return entry, "", nil
 }
 
 // tree is a tree's entries sorted by name, decoded once per tree, whichever commits share it.

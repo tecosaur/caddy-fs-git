@@ -39,3 +39,9 @@ Files and trees are cached by their git hash, so a new commit reads only what it
 changed, and an unchanged file keeps its modification time, and so its ETag:
 browsers revalidate it rather than download it again.
 
+Symlinks are followed within the commit's tree, as a filesystem follows them: a
+link to a file serves that file, and a link to a directory serves its contents,
+including partway through a path. A link that is absolute, leaves the
+repository, or points at nothing is absent, and more than 40 links in one lookup
+is a loop (=ELOOP=). Directory listings show the links themselves, as
+=os.ReadDir= does, and Caddy's file browser follows them.
